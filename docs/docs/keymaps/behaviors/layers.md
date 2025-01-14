@@ -125,6 +125,10 @@ Define a new behavior and assign `"on"` or `"off"` to `toggle-mode`:
 
 You can then use `&tog_on` in place of `&tog` whenever you wish to only toggle a layer on, and not toggle it off. An `"off"` version of the behavior can be defined similarly.
 
+## Layer Locking
+
+When the behaviors `&to` and `&tog` toggle a layer on, they will "lock" the layer in the active state. This prevents the layer from being deactivated by any behavior which is not a `&to` or a `&tog`.
+
 ## Conditional Layers
 
 The "conditional layers" feature enables a particular layer when all layers in a specified set are active.
