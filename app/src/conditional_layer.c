@@ -49,22 +49,24 @@ static const struct conditional_layer_cfg CONDITIONAL_LAYER_CFGS[] = {
 static const int32_t NUM_CONDITIONAL_LAYER_CFGS =
     sizeof(CONDITIONAL_LAYER_CFGS) / sizeof(*CONDITIONAL_LAYER_CFGS);
 
-static void conditional_layer_activate(int8_t layer) {
+static uint32_t layer_locked_by_conditional = 0;
+
+static void conditional_layer_activate(int8_t layer, bool locking) {
     // This may trigger another event that could, in turn, activate additional then-layers. However,
     // the process will eventually terminate (at worst, when every layer is active).
-    if (!zmk_keymap_layer_active(layer)) {
+    if (!zmk_keymap_layer_active(layer) || (locking && !zmk_keymap_layer_locked(layer))) {
         LOG_DBG("layer %d", layer);
-        zmk_keymap_layer_activate(layer);
+        zmk_keymap_layer_activate(layer, locking);
     }
 }
 
-static void conditional_layer_deactivate(int8_t layer) {
+static void conditional_layer_deactivate(int8_t layer, bool locking) {
     // This may deactivate a then-layer that's already active via another mechanism (e.g., a
     // momentary layer behavior). However, the same problem arises when multiple keys with the same
     // &mo binding are held and then one is released, so it's probably not an issue in practice.
     if (zmk_keymap_layer_active(layer)) {
         LOG_DBG("layer %d", layer);
-        zmk_keymap_layer_deactivate(layer);
+        zmk_keymap_layer_deactivate(layer, locking);
     }
 }
 
@@ -101,14 +103,20 @@ static int layer_state_changed_listener(const zmk_event_t *ev) {
             if ((zmk_keymap_layer_state() & mask) == mask) {
                 then_layer_state |= BIT(cfg->then_layer);
             }
+            // Same as above, but for the lock status
+            if ((zmk_keymap_layer_locks() & mask) == mask) {
+                layer_locked_by_conditional |= BIT(cfg->then_layer);
+            }
         }
 
         for (uint8_t layer = 0; layer <= max_then_layer; layer++) {
             if ((BIT(layer) & then_layers) != 0U) {
+                bool locking = (BIT(layer) & layer_locked_by_conditional) != 0U;
                 if ((BIT(layer) & then_layer_state) != 0U) {
-                    conditional_layer_activate(layer);
+                    conditional_layer_activate(layer, locking);
                 } else {
-                    conditional_layer_deactivate(layer);
+                    conditional_layer_deactivate(layer, locking);
+                    layer_locked_by_conditional &= ~(BIT(layer));
                 }
             }
         }
